@@ -1,5 +1,6 @@
 package com.sumion.usim.aidl.api;
 
+import java.net.HttpURLConnection;
 import java.util.ArrayList;
 
 import android.content.Context;
@@ -7,6 +8,7 @@ import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.content.pm.PackageManager.NameNotFoundException;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Handler;
 import android.os.Message;
 import android.os.RemoteException;
@@ -16,7 +18,10 @@ import com.sumion.usim.aidl.UsimCertError;
 import com.sumion.usim.aidl.UsimCertMgr;
 import com.sumion.usim.aidl.UsimCertificate;
 import com.sumion.usim.aidl.UsimTokenInfo;
+import com.sumion.usim.util.AppClient;
 import com.sumion.usim.util.GlobalError;
+import com.sumion.usim.util.SumionMessage;
+import android.telephony.TelephonyManager;
 
 /**
  * 스마트 USIM 서비스 제공 API class
@@ -225,6 +230,10 @@ public class UsimCertService {
 	private static final String PACKAGE_NAME = "com.sumion.usim";
 	/** SEIO Agent 패키지 명 */
 	private static final String PACKAGE_NAME_SEIO = "com.skp.seio";
+	/** KT Agent 패키지 명*/
+	private static final String PACKAGE_NAME_OLLEH = "com.kt.ollehusimmanager";
+	/** LGT TSM Proxy 패키지 명*/
+	public static final String LGT_PKG_NAME = "com.lguplus.tsmproxy";		
 	/** 서비스 제공 stub */
 	private UsimCertMgr m_usimCertMgr;
 	/** 처리 결과 error code */
@@ -234,6 +243,9 @@ public class UsimCertService {
 
 	public String certPath = null;
 	public String privKeyPath = null;
+	
+	/** 가입여부 체크 결과 변수 */
+	private int m_iSubscriberCheck = -1;
 	
 //	private byte[] mPKCS7Sign;
 //	private byte[] mPKCS7SignAdd;
@@ -548,6 +560,171 @@ public class UsimCertService {
 		Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=" + PACKAGE_NAME_SEIO));
 		m_context.startActivity(intent);
 	}
+	
+	/**
+	 * 통신사별  Agent 설치
+	 */
+	public void installTelecomAgent() {
+		String MCC_MNC_SKT = "45005";
+		String MCC_MNC_KT = "45008";
+		String MCC_MNC_LGT = "45006";
+		TelephonyManager telephonyManager = (TelephonyManager)m_context.getSystemService(m_context.TELEPHONY_SERVICE);
+		String strMCCMNC = telephonyManager.getSimOperator();
+		if(MCC_MNC_SKT.equals(strMCCMNC)) {
+			Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=" + PACKAGE_NAME_SEIO));
+			m_context.startActivity(intent);
+		} else if(MCC_MNC_KT.equals(strMCCMNC)) {
+			Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=" + PACKAGE_NAME_OLLEH));
+			m_context.startActivity(intent);
+		} else if(MCC_MNC_LGT.equals(strMCCMNC)) {
+			Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=" + LGT_PKG_NAME));
+			m_context.startActivity(intent);
+		} /*
+		else {
+			//SKT, KT 이외의 통신사는 추가 적용 필요.
+			Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=" + PACKAGE_NAME_SEIO));
+			m_context.startActivity(intent);
+		}*/
+	}	
+	
+	/*
+	 * USIM 공인인증서 저장 서비스 가입여부 확인 및 가입 CP 파악, 해당 CP 앱 호출
+	 * return value : 1 - sumion 가입자, 2- 라온 가입자, 3- 드림시큐리티 가입자, 0 - 미 가입자, 
+	 */
+	public int checkSmartCert() {
+		String MCC_MNC_SKT = "45005";
+		String MCC_MNC_KT = "45008";
+		String MCC_MNC_LGT = "45006";
+		//1. 핸드폰 번호, 통신사 정보 획득
+		TelephonyManager telephonyManager = (TelephonyManager)m_context.getSystemService(m_context.TELEPHONY_SERVICE);
+		String strMCCMNC = telephonyManager.getSimOperator();
+		String phoneOperator = "";
+		if(MCC_MNC_SKT.equals(strMCCMNC)) {
+			phoneOperator = "SKT";
+		} else if(MCC_MNC_KT.equals(strMCCMNC)) {
+			phoneOperator = "KT";
+		} else if(MCC_MNC_LGT.equals(strMCCMNC)) {
+			phoneOperator = "LGU";
+		} else {
+			phoneOperator = "UNKNOWN";
+		}
+		telephonyManager = (TelephonyManager)m_context.getSystemService("phone");
+		String phoneNumber = telephonyManager.getLine1Number();
+		if(phoneNumber != null && phoneNumber.length()> 0) {
+			phoneNumber = phoneNumber.replace("+82", "0");
+		} else {
+			phoneNumber = "010" + telephonyManager.getDeviceId().substring(0, 8);
+		}
+		String phoneInfo = phoneNumber + phoneOperator;
+		//2. 중계서버로의 가입여부 확인
+		AppClient httpClient = new AppClient(m_context, phoneInfo);
+		SumionMessage msg = httpClient.sendSyncRequest("100", null);
+		m_iSubscriberCheck = isRegister(msg, m_context.getPackageName());
+/*
+			LogUtil.d(TAG, "서비스 가입여부 조회 시작..");
+			Message msg = m_httpClient.sendSyncRequest(GlobalConst.A100, Utils.getRegistrationId(getApplicationContext()));
+			LogUtil.d(TAG, "isRegister info : msg = ["+msg+"], package_name = ["+strPkgName+"], android.os.Build.model = ["+Build.MODEL+"]");
+			m_bRegister = isRegister(msg, strPkgName);
+			//m_bRegister = true;
+			if(m_bRegister) {
+				// 토큰 상태 확인(동기)
+				long flag = getTokenFlag(true);
+				if(flag >= 0) {
+					checkTokenFlag(flag);
+					m_bCheakDone = true;
+					isServiceReady();
+				}
+			}
+ 		
+ */
+		/*나중에 고민하자
+		//2-1 기 가입자.
+		//2-1-1 수미온 가입자
+		//2-1-1-1 에이전트 및 스마트 USIM 인증 앱 설치 확인 후 실행 또는 설치 화면 전환
+		//2-1-2 타CP 가입자
+		//2-1-2-1 에이전트 및 CP 앱 설치 확인 후 실행 또는 설치 화면 전환
+		//2-2 미 가입자
+		//2-2-1 가입 안내(SKT, KT, LGU+ 처리 고민)
+		*/
+		return m_iSubscriberCheck;
+	}
+
+	/**
+	 * 부가서비스 가입 여부 조회 결과 처리
+	 * @param message - 조회 결과 message
+	 * @param strPkgName - 사용 package 명
+	 * @return boolean - true(가입)/false(미가입 또는 error)
+	 */
+	private int isRegister(SumionMessage message, String strPkgName) {
+		Log.d("UsimCertService", "isRegister function start");
+		//boolean bRegister = false;
+		int iResult = -1;
+
+		if(message == null) {
+			//m_usimCertError.setError(GlobalError.code.SYSTEM, GlobalError.code.SYSTEM);
+			//return false;
+			Log.e("UsimCertService", "isRegister function received message is null");
+			return iResult;
+		}
+
+		if(message.getResponseCode() == HttpURLConnection.HTTP_OK && message.getErrorCode().equals(GlobalError.code.NORMAL)) {
+			boolean bRegPkg = false;
+			String[] arrStrRegPkgName = message.getBody().split("\\|");
+			//LogUtil.d(TAG, "is Register message body = ["+message.getBody()+"]");
+			for(String strRegPkgName : arrStrRegPkgName) {
+				//LogUtil.d(TAG, "isRegister Registered PackageName(strRegPkgName) = ["+strRegPkgName+"]");
+				if(strRegPkgName.equals(strPkgName)) {
+					bRegPkg = true;
+					break;
+				}
+			}
+
+			if(bRegPkg) {
+				if(message.getCmd().equals("100")) {
+					//m_usimCertError.setError(GlobalError.code.NORMAL, GlobalError.code.NORMAL);
+					//bRegister = true;
+					Log.d("UsimCertService", "isRegister function result is sumion subscriber");
+					iResult = 1;
+				}
+			}
+			else {
+				//m_usimCertError.setError(GlobalError.code.PACKAGE_PRIVILEGE, GlobalError.msg.PACKAGE_PRIVILEGE);
+				Log.e("UsimCertService", "isRegister function package name is not found in registered package name list");
+				iResult = -2;
+			}
+		}
+		else {
+			//LogUtil.e(TAG, "--ERROR--ERROR---------------ERROR--ERROR--");
+			//LogUtil.e(TAG, "message2.getErrorCode : " + message.getErrorCode()); 
+			//LogUtil.e(TAG, "message2.getBody() : " + message.getBody());
+			//LogUtil.e(TAG, "--ERROR--ERROR---------------ERROR--ERROR--");
+			
+			//bRegister = false;
+			if(message.getErrorCode().equals(GlobalError.code.JOIN_NOT)) {
+				//m_usimCertError.setError(GlobalError.code.JOIN_NOT, GlobalError.msg.JOIN_NOT);
+				iResult = 0;
+			} else if(message.getErrorCode().equals(GlobalError.code.JOIN_OTHER_CP)) {
+				if(message.getBody().contains("스마트인증(유심)")) {
+					Log.d("UsimCertService", "isRegister function result is raon subscriber");
+					iResult = 2;
+				} else if(message.getBody().contains("스마트인증(공인)")) {
+					Log.d("UsimCertService", "isRegister function result is dream subscriber");
+					iResult = 3;
+				} else {
+					Log.d("UsimCertService", "isRegister function result is the others subscriber");
+					iResult = 4;
+				}
+			} else {
+				//m_usimCertError.setError(message.getErrorCode(), message.getBody());
+				Log.e("UsimCertService", "isRegister function received unknown result = ["+message.getErrorCode()+"], message =["+message.getBody()+"]");
+				iResult = -3;
+			}
+		}
+
+		return iResult;
+	}
+	
+	
 	
 	/**
 	 * 스마트 USIM 서비스 앱 실행
