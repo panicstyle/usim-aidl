@@ -2,6 +2,7 @@ package com.sumion.usim.aidl;
 
 import android.os.Parcel;
 import android.os.Parcelable;
+import android.util.Log;
 
 /**
  * 스마트 USIM 토큰 정보 class
@@ -46,12 +47,18 @@ public class UsimTokenInfo implements Parcelable {
 	@Override
 	public void writeToParcel(Parcel dest, int flags) {
 		dest.writeLong(mUsimFreeMemory);
+		dest.writeInt(mUsimSerialNumber.length);
 		dest.writeByteArray(mUsimSerialNumber);
 	}
 	
 	public void readFromParcel(Parcel in){
 		mUsimFreeMemory = in.readLong();
-		in.readByteArray(mUsimSerialNumber);
+		int size = in.readInt();
+		Log.d("UsimTokenInfo", "readFromParcel byte size = ["+size+"]");
+		byte[] data = new byte[size];
+		in.readByteArray(data);
+		mUsimSerialNumber = data;
+		
 	}
 	
 	public static final Parcelable.Creator<UsimTokenInfo> CREATOR = new Parcelable.Creator<UsimTokenInfo>(){

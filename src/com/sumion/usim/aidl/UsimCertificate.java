@@ -18,6 +18,10 @@ public class UsimCertificate implements Parcelable {
 	/** SD card 에 저장된 개인키 경로 */
 	private String m_strPrivPath;
 	
+	private String m_strOID;
+	private String m_strType;
+	private String m_strIssuer;
+	
 	public UsimCertificate() {
 	}
 
@@ -36,6 +40,13 @@ public class UsimCertificate implements Parcelable {
 		m_strPrivPath = strPrivPath;
 	}
 
+	public UsimCertificate(X509Certificate x509, int nIdx, String oid, String type) {
+		m_x509Certificate = x509;
+		m_nCertIdx = nIdx;
+		m_strOID = oid;
+		m_strType = type;
+	}
+	
 	/**
 	 * X.509 인증서 반환
 	 * @return X509Certificate - X.509 인증서
@@ -68,6 +79,18 @@ public class UsimCertificate implements Parcelable {
 		return m_strPrivPath;
 	}
 
+	public String getOID() {
+		return m_strOID;
+	}
+	
+	public String getType() {
+		return m_strType;
+	}
+	
+	public String getIssuer() {
+		return m_strIssuer;
+	}
+	
 	@Override
 	public int describeContents() {
 		return 0;
@@ -79,6 +102,9 @@ public class UsimCertificate implements Parcelable {
 		dest.writeInt(m_nCertIdx);
 		dest.writeString(m_strCertPath);
 		dest.writeString(m_strPrivPath);
+		dest.writeString(m_strOID);
+		dest.writeString(m_strType);
+		dest.writeString(m_strIssuer);
 	}
 	
 	public void readFromParcel(Parcel in) {
@@ -86,6 +112,9 @@ public class UsimCertificate implements Parcelable {
 		m_nCertIdx = in.readInt();
 		m_strCertPath = in.readString();
 		m_strPrivPath = in.readString();
+		m_strOID = in.readString();
+		m_strType = in.readString();
+		m_strIssuer = in.readString();
 	}
 
 	public static final Parcelable.Creator<UsimCertificate> CREATOR = new Parcelable.Creator<UsimCertificate>() {

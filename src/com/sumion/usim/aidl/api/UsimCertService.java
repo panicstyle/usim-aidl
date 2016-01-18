@@ -1,9 +1,16 @@
 package com.sumion.usim.aidl.api;
 
 import java.net.HttpURLConnection;
+import java.security.cert.CertificateEncodingException;
+import java.text.DateFormat;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.List;
+
+import javax.security.cert.X509Certificate;
 
 import android.content.Context;
+import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.content.pm.PackageManager.NameNotFoundException;
@@ -21,6 +28,8 @@ import com.sumion.usim.aidl.UsimTokenInfo;
 import com.sumion.usim.util.AppClient;
 import com.sumion.usim.util.GlobalError;
 import com.sumion.usim.util.SumionMessage;
+import com.sumion.usim.util.Utils;
+
 import android.telephony.TelephonyManager;
 
 /**
@@ -246,6 +255,19 @@ public class UsimCertService {
 	
 	/** 가입여부 체크 결과 변수 */
 	private int m_iSubscriberCheck = -1;
+	
+	/** 통합 API 처리 진행 상태 */
+	private boolean m_bProgressStatus = false;
+	
+	/* 인증서 필터링 정보*/
+	/*
+String strOID, String strSerialNumber, String strSubjectDN, String strIssuerDN, boolean bExpired 
+	 */
+	private String m_strOID = null;
+	private String m_strSerialNumber = null;
+	private String m_strSubjectDN = null;
+	private String m_strIssuerDN = null;
+	private boolean m_bExpired = false;
 	
 //	private byte[] mPKCS7Sign;
 //	private byte[] mPKCS7SignAdd;
@@ -517,8 +539,13 @@ public class UsimCertService {
 				return false;
 			}
 			else {
-				setErrorMessage(GlobalError.code.NORMAL, GlobalError.msg.NORMAL);
-				return true;
+				if(m_bProgressStatus == true) {
+					setErrorMessage(GlobalError.code.IN_USE, GlobalError.msg.IN_USE);
+					return false;
+				} else {
+					setErrorMessage(GlobalError.code.NORMAL, GlobalError.msg.NORMAL);
+					return true;
+				}
 			}
 		}
 		else {
@@ -849,6 +876,608 @@ public class UsimCertService {
 		}).start();
 	}
 	
+	/*
+	 * 부가서비스 가입 여부 및 앱 연동 가능 상태 조회
+	 */
+	public int checkAppStatus() {
+		int result = -100;
+		String status_result = "";
+		if(!isReady()) {
+			result = -10;
+		} else {
+			m_bProgressStatus = true;
+			//m_usimCertMgr.checkJoin(arg.m_strVal1);
+			try {
+				status_result = m_usimCertMgr.checkJoin(m_context.getPackageName());
+			} catch(RemoteException e) {
+				setErrorMessage(GlobalError.code.SERVICE_CONNECT, GlobalError.msg.SERVICE_CONNECT);
+				status_result = GlobalError.code.SERVICE_CONNECT;
+			}
+			//-88 - 앱 연결 실패, -99 - 상태조회 실패, -10 - 사용불가, -2 - 통신사 에이전트 미설치, -1 - 미가입, 0 - 보통, 1 - 비밀번호 초기화 상태, 2 - 앱 Major 업데이트, 3 - 앱 마이너 업데이트, 
+			if(GlobalError.code.NORMAL.equals(status_result)) {
+				setErrorMessage(GlobalError.code.NORMAL, GlobalError.msg.NORMAL);
+				result = 0;
+			} else if(GlobalError.code.JOIN_NOT.equals(status_result)) {
+				setErrorMessage(GlobalError.code.JOIN_NOT, GlobalError.msg.JOIN_NOT);
+				result = -10;
+			} else if(GlobalError.code.TOKEN_STATUS.equals(status_result)) {
+				setErrorMessage(GlobalError.code.TOKEN_STATUS, GlobalError.msg.TOKEN_STATUS);
+				result = 1;
+			} else if(GlobalError.code.APP_MAJOR_UPDATE.equals(status_result)) {
+				setErrorMessage(GlobalError.code.APP_MAJOR_UPDATE, GlobalError.msg.APP_MAJOR_UPDATE);
+				result = 2;
+			} else if(GlobalError.code.APP_MINOR_UPDATE.equals(status_result)) {
+				setErrorMessage(GlobalError.code.APP_MINOR_UPDATE, GlobalError.msg.APP_MINOR_UPDATE);
+				result = 3;
+			} else if(GlobalError.code.AGENT_NOT_INSTALLED.equals(status_result)) {
+				setErrorMessage(GlobalError.code.AGENT_NOT_INSTALLED, GlobalError.msg.AGENT_NOT_INSTALLED);
+				result = -2;
+			} else if(GlobalError.code.SERVICE_CONNECT.equals(status_result)) {
+				setErrorMessage(GlobalError.code.SERVICE_CONNECT, GlobalError.msg.SERVICE_CONNECT);
+				result = -88;
+			}else {
+				setErrorMessage(getErrorCode(), getErrorMessage());
+				result = -99;
+			}
+			m_bProgressStatus = false;
+		}
+		return result;
+	}
+	
+	public String readTokenInfo() {
+		String strCCID = null;
+		if(isReady()) {
+			/*
+			try {
+				//UsimTokenInfo tokenInfo = null;
+				//strCCID = Utils.toHexString(m_usimCertMgr.getTokenInfo().getUismSerialNumber());
+				
+			} catch(RemoteException e) {
+				setErrorMessage(GlobalError.code.SERVICE_CONNECT, GlobalError.msg.SERVICE_CONNECT);
+			}*/
+			strCCID = Utils.getUSIMSerialNumber(m_context);
+		} 
+		return strCCID;
+	}	
+	
+	public int getUsimCertCnt() {
+		int result = 0;
+		m_strOID = null;
+		m_strSerialNumber = null;
+		m_strSubjectDN = null;
+		m_strIssuerDN = null;
+		m_bExpired = false;		
+		if(isReady()) {
+			try {
+				result = m_usimCertMgr.getUsimCertCnt();
+			} catch(RemoteException e) {
+				setErrorMessage(GlobalError.code.SERVICE_CONNECT, GlobalError.msg.SERVICE_CONNECT);
+			}
+		}
+		return result;
+	}
+	
+	public int getFilterCertCnt(String strOID, String strSerialNumber, String strSubjectDN, String strIssuerDN, boolean bExpired) {
+		int result = 0;
+		m_strOID = strOID;
+		m_strSerialNumber = strSerialNumber;
+		m_strSubjectDN = strSubjectDN;
+		m_strIssuerDN = strIssuerDN;
+		m_bExpired = bExpired;
+		if(isReady()) {
+			try {
+				List<UsimCertificate> certlist = null;
+				if(strOID != null && strOID.length() > 0) {
+					certlist = m_usimCertMgr.getOIDFilteredUsimCertList(strOID, bExpired);
+				} else {
+					certlist = m_usimCertMgr.getFilteredUsimCertList(strSubjectDN, strIssuerDN, strSerialNumber, bExpired);
+				}
+				if(certlist != null) {
+					result = certlist.size();
+				}
+			} catch(RemoteException e) {
+				setErrorMessage(GlobalError.code.SERVICE_CONNECT, GlobalError.msg.SERVICE_CONNECT);
+			}
+		}
+		return result;
+	}
+	
+	public byte[] getCertificate(int idx) {
+		byte [] result = null;
+		if(isReady()) {
+			try {			
+				
+				//List<UsimCertificate> certlist = m_usimCertMgr.getUsimCertList();
+				List<UsimCertificate> certlist = null;
+				if(m_strOID != null && m_strOID.length() > 0) {
+					certlist = m_usimCertMgr.getOIDFilteredUsimCertList(m_strOID, m_bExpired);
+				} else {
+					if(m_strSubjectDN == null && m_strIssuerDN == null && m_strSerialNumber == null) {
+						certlist = m_usimCertMgr.getUsimCertList();
+					} else {
+						certlist = m_usimCertMgr.getFilteredUsimCertList(m_strSubjectDN, m_strIssuerDN, m_strSerialNumber, m_bExpired);
+					}
+				}				
+				if(certlist != null) {
+					try {
+						for(int i = 0; i < certlist.size();i++) {
+							//if(certlist.get(i).getCertIdx() == idx) {
+							if(idx == i) {
+								result = certlist.get(i).getCert().getEncoded();
+								break;
+							}
+						}
+						if(result == null) {
+							setErrorMessage(GlobalError.code.NO_RESULT, GlobalError.msg.NO_CERTLIST);
+						} else {
+							setErrorMessage(GlobalError.code.NORMAL, GlobalError.msg.NORMAL);
+						}
+					} catch (CertificateEncodingException e) {
+						// TODO Auto-generated catch block
+						e.printStackTrace();
+						setErrorMessage(GlobalError.code.CERT_FAIL, "인증서 Encoded 실패");
+					}
+				} else {
+					setErrorMessage(GlobalError.code.NO_RESULT, GlobalError.msg.NO_CERTLIST);
+				}
+			} catch(RemoteException e) {
+				setErrorMessage(GlobalError.code.SERVICE_CONNECT, GlobalError.msg.SERVICE_CONNECT);
+			}
+		}
+		return result;
+	}
+	
+	public String getSerialNumber(int idx) {
+		String result = null;
+		if(isReady()) {
+			try {
+				//List<UsimCertificate> certlist = m_usimCertMgr.getUsimCertList();
+				List<UsimCertificate> certlist = null;
+				if(m_strOID != null && m_strOID.length() > 0) {
+					certlist = m_usimCertMgr.getOIDFilteredUsimCertList(m_strOID, m_bExpired);
+				} else {
+					if(m_strSubjectDN == null && m_strIssuerDN == null && m_strSerialNumber == null) {
+						certlist = m_usimCertMgr.getUsimCertList();
+					} else {
+						certlist = m_usimCertMgr.getFilteredUsimCertList(m_strSubjectDN, m_strIssuerDN, m_strSerialNumber, m_bExpired);
+					}
+				}			
+				
+				if(certlist != null) {
+					for(int i = 0; i < certlist.size();i++) {
+						//if(certlist.get(i).getCertIdx() == idx) {
+						if(idx == i) {
+							result = String.valueOf(certlist.get(i).getCert().getSerialNumber());
+							break;
+						}
+					}
+					if(result == null) {
+						setErrorMessage(GlobalError.code.NO_RESULT, GlobalError.msg.NO_RESULT);
+					} else {
+						setErrorMessage(GlobalError.code.NORMAL, GlobalError.msg.NORMAL);
+					}
+				} else {
+					setErrorMessage(GlobalError.code.NO_RESULT, GlobalError.msg.NO_CERTLIST);
+				}
+			} catch(RemoteException e) {
+				setErrorMessage(GlobalError.code.SERVICE_CONNECT, GlobalError.msg.SERVICE_CONNECT);
+			}
+		}
+		return result;
+	}
+	
+	public String getIssuerDN(int idx) {
+		String result = null;
+		if(isReady()) {
+			try {
+				//List<UsimCertificate> certlist = m_usimCertMgr.getUsimCertList();
+				List<UsimCertificate> certlist = null;
+				if(m_strOID != null && m_strOID.length() > 0) {
+					certlist = m_usimCertMgr.getOIDFilteredUsimCertList(m_strOID, m_bExpired);
+				} else {
+					if(m_strSubjectDN == null && m_strIssuerDN == null && m_strSerialNumber == null) {
+						certlist = m_usimCertMgr.getUsimCertList();
+					} else {
+						certlist = m_usimCertMgr.getFilteredUsimCertList(m_strSubjectDN, m_strIssuerDN, m_strSerialNumber, m_bExpired);
+					}
+				}			
+				
+				if(certlist != null) {
+					for(int i = 0; i < certlist.size();i++) {
+						//if(certlist.get(i).getCertIdx() == idx) {
+						if(idx == i) {
+							result = certlist.get(i).getCert().getIssuerDN().getName();
+							break;
+						}
+					}
+					if(result == null) {
+						setErrorMessage(GlobalError.code.NO_RESULT, GlobalError.msg.NO_RESULT);
+					} else {
+						setErrorMessage(GlobalError.code.NORMAL, GlobalError.msg.NORMAL);
+					}
+				} else {
+					setErrorMessage(GlobalError.code.NO_RESULT, GlobalError.msg.NO_CERTLIST);
+				}
+			} catch(RemoteException e) {
+				setErrorMessage(GlobalError.code.SERVICE_CONNECT, GlobalError.msg.SERVICE_CONNECT);
+			}
+		}
+		return result;
+	}
+	
+	public String getValidFrom(int idx) {
+		String result = null;
+		if(isReady()) {
+			try {
+				//List<UsimCertificate> certlist = m_usimCertMgr.getUsimCertList();
+				List<UsimCertificate> certlist = null;
+				if(m_strOID != null && m_strOID.length() > 0) {				
+					certlist = m_usimCertMgr.getOIDFilteredUsimCertList(m_strOID, m_bExpired);
+				} else {
+					if(m_strSubjectDN == null && m_strIssuerDN == null && m_strSerialNumber == null) {
+						certlist = m_usimCertMgr.getUsimCertList();						
+					} else {
+						certlist = m_usimCertMgr.getFilteredUsimCertList(m_strSubjectDN, m_strIssuerDN, m_strSerialNumber, m_bExpired);
+					}
+				}			
+				
+				if(certlist != null) {
+					for(int i = 0; i < certlist.size();i++) {
+						//if(certlist.get(i).getCertIdx() == idx) {
+						if(idx == i) {
+							DateFormat date = new SimpleDateFormat("yyyy-MM-dd");
+							result = date.format(certlist.get(i).getCert().getNotBefore());
+							break;
+						}
+					}
+					if(result == null) {
+						setErrorMessage(GlobalError.code.NO_RESULT, GlobalError.msg.NO_RESULT);
+					} else {
+						setErrorMessage(GlobalError.code.NORMAL, GlobalError.msg.NORMAL);
+					}
+				} else {
+					setErrorMessage(GlobalError.code.NO_RESULT, GlobalError.msg.NO_CERTLIST);
+				}
+			} catch(RemoteException e) {
+				setErrorMessage(GlobalError.code.SERVICE_CONNECT, GlobalError.msg.SERVICE_CONNECT);
+			}
+		}
+		return result;
+		
+	}
+	
+	public String getValidTo(int idx) {
+		String result = null;
+		if(isReady()) {
+			try {
+				//List<UsimCertificate> certlist = m_usimCertMgr.getUsimCertList();
+				List<UsimCertificate> certlist = null;
+				if(m_strOID != null && m_strOID.length() > 0) {
+					certlist = m_usimCertMgr.getOIDFilteredUsimCertList(m_strOID, m_bExpired);
+				} else {
+					if(m_strSubjectDN == null && m_strIssuerDN == null && m_strSerialNumber == null) {
+						certlist = m_usimCertMgr.getUsimCertList();
+					} else {
+						certlist = m_usimCertMgr.getFilteredUsimCertList(m_strSubjectDN, m_strIssuerDN, m_strSerialNumber, m_bExpired);
+					}
+				}							
+				
+				if(certlist != null) {
+					for(int i = 0; i < certlist.size();i++) {
+						//if(certlist.get(i).getCertIdx() == idx) {
+						if(idx == i) {
+							DateFormat date = new SimpleDateFormat("yyyy-MM-dd");
+							result = date.format(certlist.get(i).getCert().getNotAfter());
+							break;
+						}
+					}
+					if(result == null) {
+						setErrorMessage(GlobalError.code.NO_RESULT, GlobalError.msg.NO_RESULT);
+					} else {
+						setErrorMessage(GlobalError.code.NORMAL, GlobalError.msg.NORMAL);
+					}
+				} else {
+					setErrorMessage(GlobalError.code.NO_RESULT, GlobalError.msg.NO_CERTLIST);
+				}
+			} catch(RemoteException e) {
+				setErrorMessage(GlobalError.code.SERVICE_CONNECT, GlobalError.msg.SERVICE_CONNECT);
+			}
+		}
+		return result;
+	}
+	
+	public String getSubjectDN(int idx) {
+		String result = null;
+		if(isReady()) {
+			try {
+				//List<UsimCertificate> certlist = m_usimCertMgr.getUsimCertList();
+				List<UsimCertificate> certlist = null;
+				if(m_strOID != null && m_strOID.length() > 0) {
+					certlist = m_usimCertMgr.getOIDFilteredUsimCertList(m_strOID, m_bExpired);
+				} else {
+					if(m_strSubjectDN == null && m_strIssuerDN == null && m_strSerialNumber == null) {
+						certlist = m_usimCertMgr.getUsimCertList();
+					} else {
+						certlist = m_usimCertMgr.getFilteredUsimCertList(m_strSubjectDN, m_strIssuerDN, m_strSerialNumber, m_bExpired);
+					}
+				}			
+				
+				if(certlist != null) {
+					for(int i = 0; i < certlist.size();i++) {
+						//if(certlist.get(i).getCertIdx() == idx) {
+						if(idx == i) {
+							result = certlist.get(i).getCert().getSubjectDN().getName();
+							Log.d("UsimCertServiceAIDL", "cert result subjectdn = ["+result+"]");
+							break;
+						}
+					}
+					if(result == null) {
+						setErrorMessage(GlobalError.code.NO_RESULT, GlobalError.msg.NO_RESULT);
+					} else {
+						setErrorMessage(GlobalError.code.NORMAL, GlobalError.msg.NORMAL);
+					}
+				} else {
+					setErrorMessage(GlobalError.code.NO_RESULT, GlobalError.msg.NO_CERTLIST);
+				}
+			} catch(RemoteException e) {
+				setErrorMessage(GlobalError.code.SERVICE_CONNECT, GlobalError.msg.SERVICE_CONNECT);
+			}		
+		}
+		return result;		
+	}
+	
+	public String getPolicy(int idx, boolean name) { 
+		String result = null;
+		if(isReady()) {
+			try {
+				//List<UsimCertificate> certlist = m_usimCertMgr.getUsimCertList();
+				List<UsimCertificate> certlist = null;
+				if(m_strOID != null && m_strOID.length() > 0) {
+					certlist = m_usimCertMgr.getOIDFilteredUsimCertList(m_strOID, m_bExpired);
+				} else {
+					if(m_strSubjectDN == null && m_strIssuerDN == null && m_strSerialNumber == null) {
+						certlist = m_usimCertMgr.getUsimCertList();
+					} else {
+						certlist = m_usimCertMgr.getFilteredUsimCertList(m_strSubjectDN, m_strIssuerDN, m_strSerialNumber, m_bExpired);
+					}
+				}							
+				
+				if(certlist != null) {
+					for(int i = 0; i < certlist.size();i++) {
+						//if(certlist.get(i).getCertIdx() == idx) {
+						if(idx == i) {
+							//수정 필요.
+							//result = certlist.get(i).getCert().getSubjectDN().getName();
+							result = certlist.get(i).getOID();
+							//certlist.get(i).getCert().
+							break;
+						}
+					}
+					if(result == null) {
+						setErrorMessage(GlobalError.code.NO_RESULT, GlobalError.msg.NO_RESULT);
+					} else {
+						setErrorMessage(GlobalError.code.NORMAL, GlobalError.msg.NORMAL);
+					}
+				} else {
+					setErrorMessage(GlobalError.code.NO_RESULT, GlobalError.msg.NO_CERTLIST);
+				}
+			} catch(RemoteException e) {
+				setErrorMessage(GlobalError.code.SERVICE_CONNECT, GlobalError.msg.SERVICE_CONNECT);
+			}
+		}
+		return result;		
+		
+	}
+	
+	//int index, byte[] pin, int signType,	byte[] tobeSignData, String signTime
+	public byte [] getUsimSign(int type, int index, byte[] pin, byte [] plainData, String strTime) {
+		byte [] result = null;
+		try {
+			List<UsimCertificate> certlist = null;
+			if(m_strOID != null && m_strOID.length() > 0) {
+				certlist = m_usimCertMgr.getOIDFilteredUsimCertList(m_strOID, m_bExpired);
+			} else {
+				if(m_strSubjectDN == null && m_strIssuerDN == null && m_strSerialNumber == null) {
+					certlist = m_usimCertMgr.getUsimCertList();
+				} else {
+					certlist = m_usimCertMgr.getFilteredUsimCertList(m_strSubjectDN, m_strIssuerDN, m_strSerialNumber, m_bExpired);
+				}
+			}							
+			
+			int cert_idx = -1;
+			if(certlist != null) {
+				for(int i = 0; i < certlist.size();i++) {
+					//if(certlist.get(i).getCertIdx() == idx) {
+					if(index == i) {
+						cert_idx = certlist.get(i).getCertIdx();
+						break;
+					}
+				}
+			}
+			
+			if(cert_idx >= 0) {
+			
+				switch(type) {
+				case 1: //P7 Sign(not included time)
+					result = m_usimCertMgr.getUsimSevenSign(plainData, cert_idx, pin, null);
+					break;
+				case 2: //P7 Sign(include time)
+					result = m_usimCertMgr.getUsimSevenSign(plainData, cert_idx, pin, strTime);
+					break;
+				case 3: //P7 Koscom (not include time)
+					result = m_usimCertMgr.getUsimSevenSign(plainData, cert_idx, pin, null);
+					break;
+				case 4: //P1 Sign
+					result = m_usimCertMgr.getUsimSign(plainData, cert_idx, pin, strTime);
+					break;
+				case 5: //P1 Koscom
+					result = m_usimCertMgr.getUsimSign(plainData, cert_idx, pin, strTime);
+					break;
+				case 6: //P7 Koscom(not include time)
+					result = m_usimCertMgr.getUsimSign(plainData, cert_idx, pin, null);
+					break;
+				default: //P7 Sign(include time)
+					result = m_usimCertMgr.getUsimSevenSign(plainData, cert_idx, pin, strTime);
+					break;
+				}
+				setErrorMessage(GlobalError.code.NORMAL, GlobalError.msg.NORMAL);
+			} else {
+				setErrorMessage(GlobalError.code.NO_RESULT, GlobalError.msg.NO_CERTLIST);
+			}
+			
+		} catch(RemoteException e) {
+			setErrorMessage(GlobalError.code.SERVICE_CONNECT, GlobalError.msg.SERVICE_CONNECT);
+		}
+		return result;
+	}
+	
+	public byte [] addUnauthAttr(byte[] signedData, String strOid, byte[] oidVal) {
+		byte[] result = null;
+		try {
+			result = m_usimCertMgr.addUnauthAttr(signedData, strOid, oidVal);
+			setErrorMessage(GlobalError.code.NORMAL, GlobalError.msg.NORMAL);
+		} catch(RemoteException e) {
+			setErrorMessage(GlobalError.code.SERVICE_CONNECT, GlobalError.msg.SERVICE_CONNECT);
+		}
+		return result;
+	}
+	
+	public byte[] getVIDRandom(int index, byte[] pin){
+		byte[] result = null;
+		try {
+			List<UsimCertificate> certlist = null;
+			if(m_strOID != null && m_strOID.length() > 0) {
+				certlist = m_usimCertMgr.getOIDFilteredUsimCertList(m_strOID, m_bExpired);
+			} else {
+				if(m_strSubjectDN == null && m_strIssuerDN == null && m_strSerialNumber == null) {
+					certlist = m_usimCertMgr.getUsimCertList();
+				} else {
+					certlist = m_usimCertMgr.getFilteredUsimCertList(m_strSubjectDN, m_strIssuerDN, m_strSerialNumber, m_bExpired);
+				}
+			}							
+			
+			int cert_idx = -1;
+			if(certlist != null) {
+				for(int i = 0; i < certlist.size();i++) {
+					//if(certlist.get(i).getCertIdx() == idx) {
+					if(index == i) {
+						cert_idx = certlist.get(i).getCertIdx();
+						break;
+					}
+				}
+			}
+			if(cert_idx >= 0) {
+				result = m_usimCertMgr.getVIDRandom(cert_idx, pin);
+				setErrorMessage(GlobalError.code.NORMAL, GlobalError.msg.NORMAL);
+			} else {
+				setErrorMessage(GlobalError.code.NO_RESULT, GlobalError.msg.NO_CERTLIST);
+			}
+			//setErrorMessage(GlobalError.code.NORMAL, GlobalError.msg.NORMAL);
+		} catch(RemoteException e) {
+			setErrorMessage(GlobalError.code.SERVICE_CONNECT, GlobalError.msg.SERVICE_CONNECT);
+		}
+		return result;
+	}
+	
+	public boolean getVerifyVID(int index, byte[] pin, byte[] ssn) {
+		boolean result = false;
+		try {
+			List<UsimCertificate> certlist = null;
+			if(m_strOID != null && m_strOID.length() > 0) {
+				certlist = m_usimCertMgr.getOIDFilteredUsimCertList(m_strOID, m_bExpired);
+			} else {
+				if(m_strSubjectDN == null && m_strIssuerDN == null && m_strSerialNumber == null) {
+					certlist = m_usimCertMgr.getUsimCertList();
+				} else {
+					certlist = m_usimCertMgr.getFilteredUsimCertList(m_strSubjectDN, m_strIssuerDN, m_strSerialNumber, m_bExpired);
+				}
+			}							
+			
+			int cert_idx = -1;
+			if(certlist != null) {
+				for(int i = 0; i < certlist.size();i++) {
+					//if(certlist.get(i).getCertIdx() == idx) {
+					if(index == i) {
+						cert_idx = certlist.get(i).getCertIdx();
+						break;
+					}
+				}
+			}			
+			
+			if(cert_idx >= 0) {
+				result = m_usimCertMgr.getVerifyVID(cert_idx, pin, ssn);
+				setErrorMessage(GlobalError.code.NORMAL, GlobalError.msg.NORMAL);
+			} else {
+				setErrorMessage(GlobalError.code.NO_RESULT, GlobalError.msg.NO_CERTLIST);
+			}			
+			//result = m_usimCertMgr.getVerifyVID(index, ssn);
+			setErrorMessage(GlobalError.code.NORMAL, GlobalError.msg.NORMAL);
+		} catch(RemoteException e) {
+			setErrorMessage(GlobalError.code.SERVICE_CONNECT, GlobalError.msg.SERVICE_CONNECT);
+		}
+		return result;
+	}
+	
+	public boolean writeUsimCert(byte[] pin, byte[] cert, byte[] prikey, byte[] passwd) {
+		boolean result = false;
+		try {
+			result = m_usimCertMgr.writeUsimCert(pin, cert, prikey, passwd);
+			setErrorMessage(GlobalError.code.NORMAL, GlobalError.msg.NORMAL);
+		} catch(RemoteException e) {
+			setErrorMessage(GlobalError.code.SERVICE_CONNECT, GlobalError.msg.SERVICE_CONNECT);
+		}
+		return result;
+	}
+	
+	public boolean delUsimCert(int index, byte[] pin) {
+		boolean result = false;
+		try {
+			List<UsimCertificate> certlist = null;
+			if(m_strOID != null && m_strOID.length() > 0) {
+				certlist = m_usimCertMgr.getOIDFilteredUsimCertList(m_strOID, m_bExpired);
+			} else {
+				if(m_strSubjectDN == null && m_strIssuerDN == null && m_strSerialNumber == null) {
+					certlist = m_usimCertMgr.getUsimCertList();
+				} else {
+					certlist = m_usimCertMgr.getFilteredUsimCertList(m_strSubjectDN, m_strIssuerDN, m_strSerialNumber, m_bExpired);
+				}
+			}							
+			
+			int cert_idx = -1;
+			if(certlist != null) {
+				for(int i = 0; i < certlist.size();i++) {
+					//if(certlist.get(i).getCertIdx() == idx) {
+					if(index == i) {
+						cert_idx = certlist.get(i).getCertIdx();
+						break;
+					}
+				}
+			}	
+
+			if(cert_idx >= 0) {
+				result = m_usimCertMgr.deleteUsimCert(cert_idx, pin);
+				setErrorMessage(GlobalError.code.NORMAL, GlobalError.msg.NORMAL);
+			} else {
+				setErrorMessage(GlobalError.code.NO_RESULT, GlobalError.msg.NO_CERTLIST);
+			}					
+			//result = m_usimCertMgr.deleteUsimCert(index, pin);
+			//setErrorMessage(GlobalError.code.NORMAL, GlobalError.msg.NORMAL);
+		} catch(RemoteException e) {
+			setErrorMessage(GlobalError.code.SERVICE_CONNECT, GlobalError.msg.SERVICE_CONNECT);
+		}
+		return result;
+	}
+	
+	public boolean checkPIN(byte[] pin) {
+		boolean result = false;
+		try {
+			result = m_usimCertMgr.getCheckPIN(pin);
+			setErrorMessage(GlobalError.code.NORMAL, GlobalError.msg.NORMAL);			
+		} catch(RemoteException e) {
+			setErrorMessage(GlobalError.code.SERVICE_CONNECT, GlobalError.msg.SERVICE_CONNECT);
+		}
+		return result;
+	}
 	/**
 	 * 부가서비스 가입 여부 및 연동 가능 상태 조회 요청
 	 * @param listener - 결과 처리 리스너
@@ -1042,7 +1671,7 @@ public class UsimCertService {
 
 		runBackground(USIM_RESULT_VID_RANDOM, arg, listener);
 	}
-
+	
 	/**
 	 * 토큰 정보 조회(여유 공간 및 USIM Serial(ICCID) 조회)
 	 * @param listener - 결과 처리 리스너

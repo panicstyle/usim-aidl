@@ -35,6 +35,17 @@ interface UsimCertMgr {
 
 	/**
 	 * USIM 내 인증서 목록 조회(필터 적용)
+	 * @param strOID - OID
+	 * @param strIssuerDN - Issuer DN
+	 * @param strSerialNo - Serial Number
+	 * @param bShowExpired - 만료된 인증서 포함 여부
+	 * @return List<UsimCertificate> - 필터된 인증서 목록
+	 * @throws RemoteException
+	 */
+	List<UsimCertificate> getOIDFilteredUsimCertList(String strOID, boolean bShowExpired);
+
+	/**
+	 * USIM 내 인증서 목록 조회(필터 적용)
 	 * @param strSubjectDN - Subject DN
 	 * @param strIssuerDN - Issuer DN
 	 * @param strSerialNo - Serial Number
@@ -93,6 +104,16 @@ interface UsimCertMgr {
 	byte[] getVIDRandom(int nIdx, in byte[] passwd);
 
 	/**
+	 * 인증서의 본인확인
+	 * @param nIdx - 선택 인증서 index
+	 * @param ssn - 주민등록번호
+	 * @return boolean - 결과
+	 * @throws RemoteException
+	 */
+	boolean getVerifyVID(int nIdx, in byte[] pin, in byte[] ssn);
+
+
+	/**
 	 * 토큰 정보 조회(여유 공간 및 USIM Serial(ICCID) 조회)
 	 * @return UsimTokenInfo - 토큰 정보
 	 */
@@ -131,11 +152,30 @@ interface UsimCertMgr {
 	boolean saveUsimCert(String strCertPath, String strPrivPath, in byte[] certPasswd, in byte[] passwd);
 
 	/**
+	 * 수신된 인증서 및 개인키를 USIM 에 저장
+	 * @param pin - 스마트인증 비밀번호
+	 * @param cert - 인증서 데이터
+	 * @param prikey - 개인키 데이터
+	 * @param passwd - 개인키 비밀번호
+	 * @return boolean - 인증서 및 개인키 저장 성공 여부
+	 * @throws RemoteException
+	 */
+	boolean writeUsimCert(in byte[] pin, in byte[] cert, in byte[] prikey, in byte[] passwd);
+
+	/**
 	 * USIM 내 인증서 삭제
 	 * @param nIdx - 선택 인증서 index
 	 * @param passwd - 스마트 인증 비밀번호
 	 */
 	boolean deleteUsimCert(int nIdx, in byte[] passwd);
+
+	/**
+	 * 스마트인증 비밀번호 체크
+	 * @param passwd - 스마트 인증 비밀번호
+	 * @return boolean - 체크 결과
+	 * @throws RemoteException
+	 */
+	boolean getCheckPIN(in byte[] pin);
 
 	/**
 	 * Error 정보 획득
