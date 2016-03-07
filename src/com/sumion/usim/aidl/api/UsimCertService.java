@@ -697,9 +697,9 @@ String strOID, String strSerialNumber, String strSubjectDN, String strIssuerDN, 
 		if(message.getResponseCode() == HttpURLConnection.HTTP_OK && message.getErrorCode().equals(GlobalError.code.NORMAL)) {
 			boolean bRegPkg = false;
 			String[] arrStrRegPkgName = message.getBody().split("\\|");
-			//LogUtil.d(TAG, "is Register message body = ["+message.getBody()+"]");
+			Log.d("UsimCertService", "is Register message body = ["+message.getBody()+"]");
 			for(String strRegPkgName : arrStrRegPkgName) {
-				//LogUtil.d(TAG, "isRegister Registered PackageName(strRegPkgName) = ["+strRegPkgName+"]");
+				Log.d("UsimCertService", "isRegister Registered PackageName(strRegPkgName) = ["+strRegPkgName+"], current package name = ["+strPkgName+"]");
 				if(strRegPkgName.equals(strPkgName)) {
 					bRegPkg = true;
 					break;
@@ -721,15 +721,25 @@ String strOID, String strSerialNumber, String strSubjectDN, String strIssuerDN, 
 			}
 		}
 		else {
-			//LogUtil.e(TAG, "--ERROR--ERROR---------------ERROR--ERROR--");
-			//LogUtil.e(TAG, "message2.getErrorCode : " + message.getErrorCode()); 
-			//LogUtil.e(TAG, "message2.getBody() : " + message.getBody());
-			//LogUtil.e(TAG, "--ERROR--ERROR---------------ERROR--ERROR--");
+			Log.e("UsimCertService", "--ERROR--ERROR---------------ERROR--ERROR--");
+			Log.e("UsimCertService", "message2.getErrorCode : " + message.getErrorCode()); 
+			Log.e("UsimCertService", "message2.getBody() : " + message.getBody());
+			Log.e("UsimCertService", "--ERROR--ERROR---------------ERROR--ERROR--");
 			
 			//bRegister = false;
 			if(message.getErrorCode().equals(GlobalError.code.JOIN_NOT)) {
 				//m_usimCertError.setError(GlobalError.code.JOIN_NOT, GlobalError.msg.JOIN_NOT);
-				iResult = 0;
+				if(message.getBody().contains("USIM_0001")) {
+					//라온
+					iResult = 5;
+				} else if(message.getBody().contains("USIM_0002")) {
+					//드림
+					iResult = 6;
+				} else {
+					//수미온
+					iResult = 0;
+				}
+				
 			} else if(message.getErrorCode().equals(GlobalError.code.JOIN_OTHER_CP)) {
 				if(message.getBody().contains("스마트인증(유심)")) {
 					Log.d("UsimCertService", "isRegister function result is raon subscriber");
