@@ -32,6 +32,7 @@ public class AppClient {
 	 */
 	private String mUserInfo;	
 	
+	//private static final String mServerURL = "https://relay.mobileusim.com/usim/app/";
 	private static final String mServerURL = "https://relay.mobileusim.com/usim/app/";
 	/** HTTP 통신 time out */
 	public static int HTTP_TIME_OUT_MS	= 60000;	
@@ -295,6 +296,8 @@ public class AppClient {
 		msg.clearMessage();
 		msg.getHeader().put("Cookie", null);
 		msg.getHeader().put("USER_INFO", mUserInfo);
+		//msg.getHeader().put("USER_INFO", "01027123769SKT");
+		msg.getHeader().put("PKG_NAME", mContext.getPackageName());
 		msg.setBody("|" + Build.MODEL);
 
 		//msg.setBody(Utils.getRegistrationId(this.mContext) + "|IM-A890S"/* + Build.MODEL*/);
