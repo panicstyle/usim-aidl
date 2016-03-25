@@ -39,7 +39,7 @@ public class AppClient {
 	public static int HTTP_TIME_OUT_MS	= 60000;	
 	
 	public AppClient(Context context, String userInfo) {
-		Log.d("AppClient", "AppClient function start = ["+userInfo+"]");
+		LogUtil.d("AppClient", "AppClient function start = ["+userInfo+"]");
 		mContext = context;
 		mUserInfo = userInfo;
 		/*
@@ -59,7 +59,7 @@ public class AppClient {
 	 * @param strBody - 요청 body
 	 */
 	public SumionMessage sendSyncRequest(String strCmd, String strBody) {
-		Log.d("AppClient", "sendSyncRequest function start");
+		LogUtil.d("AppClient", "sendSyncRequest function start");
 		if(m_bWait) {  // Waiting status
 			Log.d("AppClient", "sendSyncRequest function m_bWait is true");
 			return null;
@@ -67,7 +67,7 @@ public class AppClient {
 
 		m_syncMsg = new SumionMessage();
 		getMessage(strCmd, m_syncMsg, strBody);
-		Log.d("AppClient", "getMessage : strCmd = ["+strCmd +"], m_syncMsg = ["+m_syncMsg.getBody()+"], strBody = ["+strBody+"]");
+		LogUtil.d("AppClient", "getMessage : strCmd = ["+strCmd +"], m_syncMsg = ["+m_syncMsg.getBody()+"], strBody = ["+strBody+"]");
 		m_bWait = true;
 		new Thread(new Runnable() {
 			
@@ -87,7 +87,7 @@ public class AppClient {
 				m_bWait = false;
 			}
 		}
-		Log.d("AppClient", "sendSyncRequest function start, m_syncMsg = ["+m_syncMsg.getBody()+"]");
+		LogUtil.d("AppClient", "sendSyncRequest function start, m_syncMsg = ["+m_syncMsg.getBody()+"]");
 		return m_syncMsg;
 	}	
 
@@ -144,7 +144,7 @@ public class AppClient {
 				Entry entry = (Entry) iterator.next();
 				if(entry.getValue() != null) {
 					con.setRequestProperty(entry.getKey().toString(), entry.getValue().toString());
-					Log.d("AppClient", "INPUT Parm Key: " + entry.getKey() + ", Value: " + entry.getValue());
+					LogUtil.d("AppClient", "INPUT Parm Key: " + entry.getKey() + ", Value: " + entry.getValue());
 				}
 			}
 
