@@ -27,6 +27,7 @@ import com.sumion.usim.aidl.UsimCertificate;
 import com.sumion.usim.aidl.UsimTokenInfo;
 import com.sumion.usim.util.AppClient;
 import com.sumion.usim.util.GlobalError;
+import com.sumion.usim.util.LogUtil;
 import com.sumion.usim.util.SmartUsimResultCode;
 import com.sumion.usim.util.SumionMessage;
 import com.sumion.usim.util.Utils;
@@ -409,7 +410,7 @@ String strOID, String strSerialNumber, String strSubjectDN, String strIssuerDN, 
 	 * 연결 실패 : SERVICE_CONNECT_FAIL
 	 */
 	public int bind(UsimServiceConnection conn) {
-		Log.d("UsimCertService", "bind m_bConnectRequest[" + m_bConnectRequest + "]");
+		LogUtil.d("UsimCertService", "bind m_bConnectRequest[" + m_bConnectRequest + "]");
 		if (m_bConnectRequest) {
 			return SERVICE_ALREADY_CONNECTED;
 		}
@@ -429,7 +430,7 @@ String strOID, String strSerialNumber, String strSubjectDN, String strIssuerDN, 
 	 * USIM 인증 서비스 연결 해제 요청
 	 */
 	public void unbind() {
-		Log.d("UsimCertService", "unbind m_usimCertMgr[" + m_usimCertMgr + "]");
+		LogUtil.d("UsimCertService", "unbind m_usimCertMgr[" + m_usimCertMgr + "]");
 		if (m_usimCertMgr == null) {
 			return;
 		}
@@ -686,21 +687,21 @@ String strOID, String strSerialNumber, String strSubjectDN, String strIssuerDN, 
 	 * @return boolean - true(가입)/false(미가입 또는 error)
 	 */
 	private int isRegister(SumionMessage message, String strPkgName) {
-		Log.d("UsimCertService", "isRegister function start");
+		LogUtil.d("UsimCertService", "isRegister function start");
 		//boolean bRegister = false;
 		int iResult = -1;
 
 		if(message == null) {
 			//m_usimCertError.setError(GlobalError.code.SYSTEM, GlobalError.code.SYSTEM);
 			//return false;
-			Log.e("UsimCertService", "isRegister function received message is null");
+			LogUtil.d("UsimCertService", "isRegister function received message is null");
 			return iResult;
 		}
 
 		if(message.getResponseCode() == HttpURLConnection.HTTP_OK && message.getErrorCode().equals(GlobalError.code.NORMAL)) {
 			boolean bRegPkg = false;
 			String[] arrStrRegPkgName = message.getBody().split("\\|");
-			//Log.d("UsimCertService", "is Register message body = ["+message.getBody()+"]");
+			LogUtil.d("UsimCertService", "is Register message body = ["+message.getBody()+"]");
 			for(String strRegPkgName : arrStrRegPkgName) {
 				Log.d("UsimCertService", "isRegister Registered PackageName(strRegPkgName) = ["+strRegPkgName+"], current package name = ["+strPkgName+"]");
 				if(strRegPkgName.equals(strPkgName)) {
@@ -713,21 +714,21 @@ String strOID, String strSerialNumber, String strSubjectDN, String strIssuerDN, 
 				if(message.getCmd().equals("100")) {
 					//m_usimCertError.setError(GlobalError.code.NORMAL, GlobalError.code.NORMAL);
 					//bRegister = true;
-					Log.d("UsimCertService", "isRegister function result is sumion subscriber");
+					LogUtil.d("UsimCertService", "isRegister function result is sumion subscriber");
 					iResult = 1;
 				}
 			}
 			else {
 				//m_usimCertError.setError(GlobalError.code.PACKAGE_PRIVILEGE, GlobalError.msg.PACKAGE_PRIVILEGE);
-				Log.e("UsimCertService", "isRegister function package name is not found in registered package name list");
+				LogUtil.d("UsimCertService", "isRegister function package name is not found in registered package name list");
 				iResult = -2;
 			}
 		}
 		else {
-			Log.e("UsimCertService", "--ERROR--ERROR---------------ERROR--ERROR--");
-			Log.e("UsimCertService", "message2.getErrorCode : " + message.getErrorCode()); 
-			Log.e("UsimCertService", "message2.getBody() : " + message.getBody());
-			Log.e("UsimCertService", "--ERROR--ERROR---------------ERROR--ERROR--");
+			LogUtil.d("UsimCertService", "--ERROR--ERROR---------------ERROR--ERROR--");
+			LogUtil.d("UsimCertService", "message2.getErrorCode : " + message.getErrorCode()); 
+			LogUtil.d("UsimCertService", "message2.getBody() : " + message.getBody());
+			LogUtil.d("UsimCertService", "--ERROR--ERROR---------------ERROR--ERROR--");
 			
 			//bRegister = false;
 			if(message.getErrorCode().equals(GlobalError.code.JOIN_NOT)) {
@@ -745,18 +746,18 @@ String strOID, String strSerialNumber, String strSubjectDN, String strIssuerDN, 
 				
 			} else if(message.getErrorCode().equals(GlobalError.code.JOIN_OTHER_CP)) {
 				if(message.getBody().contains("스마트인증(유심)")) {
-					Log.d("UsimCertService", "isRegister function result is raon subscriber");
+					LogUtil.d("UsimCertService", "isRegister function result is raon subscriber");
 					iResult = 2;
 				} else if(message.getBody().contains("스마트인증(공인)")) {
-					Log.d("UsimCertService", "isRegister function result is dream subscriber");
+					LogUtil.d("UsimCertService", "isRegister function result is dream subscriber");
 					iResult = 3;
 				} else {
-					Log.d("UsimCertService", "isRegister function result is the others subscriber");
+					LogUtil.d("UsimCertService", "isRegister function result is the others subscriber");
 					iResult = 4;
 				}
 			} else {
 				//m_usimCertError.setError(message.getErrorCode(), message.getBody());
-				Log.e("UsimCertService", "isRegister function received unknown result = ["+message.getErrorCode()+"], message =["+message.getBody()+"]");
+				LogUtil.d("UsimCertService", "isRegister function received unknown result = ["+message.getErrorCode()+"], message =["+message.getBody()+"]");
 				iResult = -3;
 			}
 		}
@@ -1220,7 +1221,7 @@ String strOID, String strSerialNumber, String strSubjectDN, String strIssuerDN, 
 						//if(certlist.get(i).getCertIdx() == idx) {
 						if(idx == i) {
 							result = certlist.get(i).getCert().getSubjectDN().getName();
-							Log.d("UsimCertServiceAIDL", "cert result subjectdn = ["+result+"]");
+							LogUtil.d("UsimCertServiceAIDL", "cert result subjectdn = ["+result+"]");
 							break;
 						}
 					}

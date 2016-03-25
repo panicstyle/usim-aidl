@@ -1,5 +1,7 @@
 package com.sumion.usim.aidl;
 
+import com.sumion.usim.util.LogUtil;
+
 import android.os.Parcel;
 import android.os.Parcelable;
 import android.util.Log;
@@ -54,7 +56,7 @@ public class UsimTokenInfo implements Parcelable {
 	public void readFromParcel(Parcel in){
 		mUsimFreeMemory = in.readLong();
 		int size = in.readInt();
-		Log.d("UsimTokenInfo", "readFromParcel byte size = ["+size+"]");
+		LogUtil.d("UsimTokenInfo", "readFromParcel byte size = ["+size+"]");
 		byte[] data = new byte[size];
 		in.readByteArray(data);
 		mUsimSerialNumber = data;
