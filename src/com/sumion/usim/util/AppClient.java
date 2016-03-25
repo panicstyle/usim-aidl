@@ -32,8 +32,9 @@ public class AppClient {
 	 */
 	private String mUserInfo;	
 	
-	//private static final String mServerURL = "https://relay.mobileusim.com/usim/app/";
 	private static final String mServerURL = "https://relay.mobileusim.com/usim/app/";
+	//private static final String mServerURL = "https://dev.mobileusim.com/usim/app/";
+	//private static final String mServerURL = "http://192.168.40.15:8080/usim/app/";
 	/** HTTP 통신 time out */
 	public static int HTTP_TIME_OUT_MS	= 60000;	
 	
@@ -143,7 +144,7 @@ public class AppClient {
 				Entry entry = (Entry) iterator.next();
 				if(entry.getValue() != null) {
 					con.setRequestProperty(entry.getKey().toString(), entry.getValue().toString());
-					//LogUtil.d(TAG, "INPUT Parm Key: " + entry.getKey() + ", Value: " + entry.getValue());
+					Log.d("AppClient", "INPUT Parm Key: " + entry.getKey() + ", Value: " + entry.getValue());
 				}
 			}
 
@@ -295,6 +296,7 @@ public class AppClient {
 	private void getA100S(SumionMessage msg, String body) {
 		msg.clearMessage();
 		msg.getHeader().put("Cookie", null);
+		//msg.getHeader().put("CONNECT_ID", "site.skip.domain");
 		msg.getHeader().put("USER_INFO", mUserInfo);
 		//msg.getHeader().put("USER_INFO", "01027123769SKT");
 		msg.getHeader().put("PKG_NAME", mContext.getPackageName());

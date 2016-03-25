@@ -36,6 +36,8 @@ public final class GlobalError {
 		public static final String WRONG_PRIV_PASS = "004";
 		/** 동일한 인증서가 이미 저장되어 있는 경우 */
 		public static final String ALREADY_EXIST = "005";
+		/** 인증서 저장공간 없음 */
+		public static final String STORAGE_FULL = "006";
 		/** 서비스 미가입자 */
 		public static final String JOIN_NOT = "010";
 		/** 타 CP 서비스 가입자 */
@@ -114,6 +116,8 @@ public final class GlobalError {
 		public static final String WRONG_PRIV_PASS = "공인인증서 비밀번호가 맞지 않습니다.";
 		/** 동일한 인증서가 이미 저장되어 있는 경우 */
 		public static final String ALREADY_EXIST = "동일한 인증서가 이미 저장되어 있습니다.";
+		/** 인증서 저장공간 없음 */
+		public static final String STORAGE_FULL = "인증서를 저장할 공간이 없습니다.";		
 		/** 서비스 미가입자 */
 		public static final String JOIN_NOT = "통신사 부가서비스에 가입하지 않은 고객입니다.";
 		/** 타 CP 서비스 가입자 */

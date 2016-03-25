@@ -27,6 +27,7 @@ import com.sumion.usim.aidl.UsimCertificate;
 import com.sumion.usim.aidl.UsimTokenInfo;
 import com.sumion.usim.util.AppClient;
 import com.sumion.usim.util.GlobalError;
+import com.sumion.usim.util.SmartUsimResultCode;
 import com.sumion.usim.util.SumionMessage;
 import com.sumion.usim.util.Utils;
 
@@ -644,9 +645,11 @@ String strOID, String strSerialNumber, String strSubjectDN, String strIssuerDN, 
 		}
 		String phoneInfo = phoneNumber + phoneOperator;
 		//2. 중계서버로의 가입여부 확인
-		AppClient httpClient = new AppClient(m_context, phoneInfo);
-		SumionMessage msg = httpClient.sendSyncRequest("100", null);
-		m_iSubscriberCheck = isRegister(msg, m_context.getPackageName());
+//		for(int i = 0;i < 10;i++) {
+			AppClient httpClient = new AppClient(m_context, phoneInfo);
+			SumionMessage msg = httpClient.sendSyncRequest("100", null);
+			m_iSubscriberCheck = isRegister(msg, m_context.getPackageName());
+//		}
 /*
 			LogUtil.d(TAG, "서비스 가입여부 조회 시작..");
 			Message msg = m_httpClient.sendSyncRequest(GlobalConst.A100, Utils.getRegistrationId(getApplicationContext()));
@@ -697,7 +700,7 @@ String strOID, String strSerialNumber, String strSubjectDN, String strIssuerDN, 
 		if(message.getResponseCode() == HttpURLConnection.HTTP_OK && message.getErrorCode().equals(GlobalError.code.NORMAL)) {
 			boolean bRegPkg = false;
 			String[] arrStrRegPkgName = message.getBody().split("\\|");
-			Log.d("UsimCertService", "is Register message body = ["+message.getBody()+"]");
+			//Log.d("UsimCertService", "is Register message body = ["+message.getBody()+"]");
 			for(String strRegPkgName : arrStrRegPkgName) {
 				Log.d("UsimCertService", "isRegister Registered PackageName(strRegPkgName) = ["+strRegPkgName+"], current package name = ["+strPkgName+"]");
 				if(strRegPkgName.equals(strPkgName)) {
@@ -1432,7 +1435,16 @@ String strOID, String strSerialNumber, String strSubjectDN, String strIssuerDN, 
 		boolean result = false;
 		try {
 			result = m_usimCertMgr.writeUsimCert(pin, cert, prikey, passwd);
-			setErrorMessage(GlobalError.code.NORMAL, GlobalError.msg.NORMAL);
+			if(result == true) {
+				setErrorMessage(GlobalError.code.NORMAL, GlobalError.msg.NORMAL);
+			} else {
+				if(m_usimCertMgr.getFreeCertCnt() == 0) {
+					setErrorMessage(GlobalError.code.STORAGE_FULL, GlobalError.msg.STORAGE_FULL);
+				} else {
+					setErrorMessage(m_usimCertMgr.getErrorMessage().getErrorCode(), m_usimCertMgr.getErrorMessage().getErrorMessage());
+				}
+				
+			}
 		} catch(RemoteException e) {
 			setErrorMessage(GlobalError.code.SERVICE_CONNECT, GlobalError.msg.SERVICE_CONNECT);
 		}
@@ -1796,6 +1808,46 @@ String strOID, String strSerialNumber, String strSubjectDN, String strIssuerDN, 
 		boolean m_bVal1;
 	}
 
+	/**
+	 * SmartUsim 통합 API 오류 코드 반환
+	 */
+	public int getSmartUsimError() {
+		int result = -1;
+		if(m_strErrCode.equals(GlobalError.code.NORMAL)) {
+			result = SmartUsimResultCode.RESULT_OK;
+		} else if(m_strErrCode.equals(GlobalError.code.CERT_FAIL)) {
+			result = SmartUsimResultCode.RESULT_PW_PIN_LOCK;
+		} else if(m_strErrCode.equals(GlobalError.code.PASS_INITED)) {
+			result = SmartUsimResultCode.RESULT_PW_PIN_LOCK;
+		} else if(m_strErrCode.equals(GlobalError.code.USIM_CONNECT_FAIL)) {
+			result = SmartUsimResultCode.RESULT_CORE_INIT_FAIL;
+		} else if(m_strErrCode.equals(GlobalError.code.USIM_PKCS11)) {
+			result = SmartUsimResultCode.RESULT_CORE_INIT_FAIL;
+		} else if(m_strErrCode.equals(GlobalError.code.NO_CERTLIST)) {
+			result = SmartUsimResultCode.RESULT_NOT_EXIST_FILTER_CERT;
+		} else if(m_strErrCode.equals(GlobalError.code.USIM_ETC)) {
+			result = SmartUsimResultCode.RESULT_CORE_INIT_FAIL;
+		} else if(m_strErrCode.equals(GlobalError.code.USIM_UNKNOWN)) {
+			result = SmartUsimResultCode.RESULT_CORE_INIT_FAIL;
+		} else if(m_strErrCode.equals(GlobalError.code.WRONG_PASS)) {
+			result = SmartUsimResultCode.RESULT_PW_PIN_INCORRECT;
+		} else if(m_strErrCode.equals(GlobalError.code.TOKEN_STATUS)) {
+			result = SmartUsimResultCode.RESULT_PW_PIN_INIT_STATE;
+		} else if(m_strErrCode.equals(GlobalError.code.WRONG_PRIV_PASS)) {
+			result = SmartUsimResultCode.RESULT_PW_CERT_INCORRECT;
+		} else if(m_strErrCode.equals(GlobalError.code.ALREADY_EXIST)) {
+			result = SmartUsimResultCode.RESULT_SAME_CERT_EXIST;
+		} else if(m_strErrCode.equals(GlobalError.code.STORAGE_FULL)) {
+			result = SmartUsimResultCode.RESULT_NOT_ENOUGH_CERT_STORAGE;
+		} else if(m_strErrCode.equals(GlobalError.code.JOIN_NOT)) {
+			result = SmartUsimResultCode.RESULT_USER_NO_MEMBER;
+		} else if(m_strErrCode.equals(GlobalError.code.JOIN_OTHER_CP)) {
+			result = SmartUsimResultCode.RESULT_USER_SIMILAR_MEMBER;
+		}
+			
+		return result;
+	}	
+	
 //	public byte[] setUnauthData(){
 //			
 //			INISAFESign sign = new INISAFESign();
