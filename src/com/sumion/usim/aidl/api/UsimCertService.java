@@ -415,7 +415,11 @@ String strOID, String strSerialNumber, String strSubjectDN, String strIssuerDN, 
 			return SERVICE_ALREADY_CONNECTED;
 		}
 
-		if(m_context.bindService(new Intent(SERVICE_NAME), conn, Context.BIND_AUTO_CREATE)) {
+		Intent intent = new Intent().setAction(SERVICE_NAME);
+		intent.setPackage(PACKAGE_NAME);
+		
+		//if(m_context.bindService(new Intent(SERVICE_NAME), conn, Context.BIND_AUTO_CREATE)) {
+		if(m_context.bindService(intent, conn, Context.BIND_AUTO_CREATE)) {
 			m_connection = conn;
 			m_bConnectRequest = true;
 			return SERVICE_CONNECT_REQUEST_OK;
@@ -703,7 +707,7 @@ String strOID, String strSerialNumber, String strSubjectDN, String strIssuerDN, 
 			String[] arrStrRegPkgName = message.getBody().split("\\|");
 			LogUtil.d("UsimCertService", "is Register message body = ["+message.getBody()+"]");
 			for(String strRegPkgName : arrStrRegPkgName) {
-				Log.d("UsimCertService", "isRegister Registered PackageName(strRegPkgName) = ["+strRegPkgName+"], current package name = ["+strPkgName+"]");
+				LogUtil.d("UsimCertService", "isRegister Registered PackageName(strRegPkgName) = ["+strRegPkgName+"], current package name = ["+strPkgName+"]");
 				if(strRegPkgName.equals(strPkgName)) {
 					bRegPkg = true;
 					break;
@@ -1861,13 +1865,13 @@ String strOID, String strSerialNumber, String strSubjectDN, String strIssuerDN, 
 //					UsimCertError usimCertError = m_usimCertMgr.getErrorMessage();
 //					m_strErrCode = usimCertError.getErrorCode();
 //					m_strErrMsg =  usimCertError.getErrorMessage();
-//					Log.e("TEST", "mPKCS7SingAdd.getErrorCode() : " + usimCertError.getErrorCode());
-//					Log.e("TEST", "mPKCS7SingAdd.getErrorMessage() : " + usimCertError.getErrorMessage());
+//					LogUtil.e("TEST", "mPKCS7SingAdd.getErrorCode() : " + usimCertError.getErrorCode());
+//					LogUtil.e("TEST", "mPKCS7SingAdd.getErrorMessage() : " + usimCertError.getErrorMessage());
 //					return null;
 //				}
 //				else
 //				{
-//					Log.e("TEST", "mPKCS7SingAdd : " + new String(mPKCS7Sign));
+//					LogUtil.e("TEST", "mPKCS7SingAdd : " + new String(mPKCS7Sign));
 //				}
 //			}else{
 //				return null;
@@ -1900,7 +1904,7 @@ String strOID, String strSerialNumber, String strSubjectDN, String strIssuerDN, 
 //				loginHttps.setParameter("PKCS7SignedData", new String(signData));
 //				netRes = loginHttps.getNetResponse();
 //		    	res = netRes.getFullResMessage();
-//		    	Log.e("TEST", "Login test result : " + res);
+//		    	LogUtil.e("TEST", "Login test result : " + res);
 //		    	
 //		    	
 //		    	
